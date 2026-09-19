@@ -763,6 +763,89 @@ button:
     disabled_by_default: true
 ```
 
+## Mealplen compatible configuration
+
+Alternatively to the configuration example above, the device may expose a b64 encoded string that is compatible with the [MealPlan card](https://github.com/FredrikM97/mealplan-card).
+
+This string is compatible with Tuya devices and decodes byes as follows:
+
+`[day, hour, minute, portion, enabled]`
+Days are a bitmask with sunday as the first day:
+`[saturday, sunday, monday, tuesday, wednesday, thursday, friday]`
+e.g. 127 = b01111111 = All days
+
+replace the `time` and `number` elements above with the following:
+
+```yaml
+text:
+  - platform: template
+    id: feed_schedule
+    name: "Feeding schedule"
+    icon: mdi:calendar-clock
+    entity_category: config
+    mode: text
+    optimistic: true
+    restore_value: true
+    initial_value: ""
+    min_length: 0
+    max_length: 252
+    # Base64 payload compatible with the "mealplan-card" Lovelace card
+    # (https://github.com/FredrikM97/mealplan-card) using any of its default
+    # profiles, e.g. manufacturer: Cleverio / model: PF100. Each schedule
+    # entry is 5 raw bytes, concatenated and base64-encoded:
+    #   [days, hour, minute, portion, enabled]
+    # `days` is a bitmask where bit0=Sunday, bit1=Saturday, bit2=Friday,
+    # bit3=Thursday, bit4=Wednesday, bit5=Tuesday, bit6=Monday (127 = every day).
+
+time:
+  - id: sntp_time
+    platform: sntp
+    on_time:
+      # Hourly
+      - hours: 7-22
+        minutes: 0
+        seconds: 0
+        then:
+          - lambda: |-
+              id(check_food_level)->execute(/* food_dispensed = */ false, /* play_sound = */ true, /* send_event = */ false);
+      # Every minute: check the feeding schedule stored in feed_schedule
+      - hours: '*'
+        minutes: '*'
+        seconds: 0
+        then:
+          - lambda: |-
+              auto now = id(sntp_time).now();
+              std::vector<uint8_t> schedule = esphome::base64_decode(id(feed_schedule).state);
+              // bit0=Sun, bit1=Sat, bit2=Fri, bit3=Thu, bit4=Wed, bit5=Tue, bit6=Mon
+              static const uint8_t DAY_BIT[8] = {0, 0, 6, 5, 4, 3, 2, 1};
+              uint8_t today_bit = DAY_BIT[now.day_of_week];
+              for (size_t i = 0; i + 5 <= schedule.size(); i += 5) {
+                uint8_t days = schedule[i];
+                uint8_t hour = schedule[i + 1];
+                uint8_t minute = schedule[i + 2];
+                uint8_t portion = schedule[i + 3];
+                uint8_t enabled = schedule[i + 4];
+                if (enabled && hour == now.hour && minute == now.minute && (days & (1 << today_bit))) {
+                  id(actuate_feeder)->execute((int) portion);
+                }
+              }
+```
+
+Homeassistant will now expose the text component as a sensor that can be used in the mealplan-card. Any of the generic Tuya devices may be selected when configuring the card:
+
+- Cleverio PF100
+- Fukumaru-W (f1y6wo)
+- Yuposl (enyxp8)
+- Arlec PF002HA
+- PetLibro (000004ajdj)
+- MolyPet F02W
+- Petrust
+- Meowmatic
+- Wuipet (du4l-wc-01)
+- Pixi
+- Rojeco (2L Pet Feeder)
+- Kalado KPF01
+
 ## Automation example
 
 ```yaml
