@@ -136,32 +136,7 @@ generic Tuya devices may be selected when configuring the card:
 
 ## Automation example
 
-```yaml
-alias: Pet feeder notifications
-description: ""
-trigger:
-  - platform: event
-    event_type: esphome.feeder_food_low
-    id: food_low
-  - platform: event
-    event_type: esphome.feeder_food_dispensed
-    id: food_dispensed
-condition: []
-action:
-  - if:
-      - condition: trigger
-        id:
-          - food_low
-    then:
-      - service: notify.notify
-        metadata: {}
-        data:
-          message: "{{ trigger.event.data.message }}"
-      - service: notify.persistent_notification
-        metadata: {}
-        data:
-          message: "{{ trigger.event.data.message }}"
-mode: single
+```yaml=automation_example.yaml
 ```
 
 _Note: currently, `esphome.feeder_food_dispensed event` is ignored to not spam the users with multiple notifications
